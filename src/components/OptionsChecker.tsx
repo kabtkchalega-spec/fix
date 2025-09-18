@@ -290,14 +290,7 @@ export function OptionsChecker() {
       try {
         toast(`🔍 Checking question ${i + 1}/${questions.length}...`, { duration: 2000 });
 
-        const validation = await validateAndFixQuestion({
-          question_statement: question.question_statement,
-          question_type: question.question_type,
-          options: question.options,
-          answer: question.answer,
-          solution: question.solution,
-          page_number: 1
-        });
+        const validation = await validateAndFixQuestion(question);
 
         if (validation.isValid && !validation.correctedQuestion) {
           // Question is already valid
@@ -308,7 +301,7 @@ export function OptionsChecker() {
               : result
           ));
           toast.success(`✅ Question ${i + 1} is valid`);
-        } else if (validation.correctedQuestion) {
+        } else if (validation.isValid && validation.correctedQuestion) {
           // Question was fixed
           await updateQuestionInDatabase(question.id, validation.correctedQuestion);
           fixedCount++;
@@ -337,7 +330,7 @@ export function OptionsChecker() {
                 }
               : result
           ));
-          toast.error(`❌ Question ${i + 1} failed validation`);
+          toast.error(`❌ Question ${i + 1} failed validation: ${validation.reason}`);
         }
 
         setProgress(prev => ({
@@ -349,7 +342,7 @@ export function OptionsChecker() {
 
         // Delay between questions to avoid rate limits
         if (i < questions.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 8000));
+          await new Promise(resolve => setTimeout(resolve, 12000)); // Increased delay for comprehensive validation
         }
 
       } catch (error) {
@@ -377,6 +370,7 @@ export function OptionsChecker() {
       .from('new_questions')
       .update({
         question_statement: correctedQuestion.question_statement,
+        question_type: correctedQuestion.question_type,
         options: correctedQuestion.options,
         answer: correctedQuestion.answer,
         solution: correctedQuestion.solution,
