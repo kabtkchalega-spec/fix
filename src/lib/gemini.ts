@@ -1,17 +1,29 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Multiple API keys for rotation to avoid rate limits
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+
+// Multiple API keys for round-robin usage
 const API_KEYS = [
-  import.meta.env.VITE_GEMINI_API_KEY,
-  'AIzaSyAp5APT1c_GHyB99qlqOEnv81LuV5aC0ZA',
-  'AIzaSyBGs6lGKZbq9WhuqYH2O9rh6QHWARQMPOQ',
-  'AIzaSyDJKTbMMDcyhKsh_tUQn-1b8JlppWVLy9Y',
-  'AIzaSyADzQpjE3NTp2N40iSHeDAVMVp9viNZ-UY',
-  'AIzaSyBFdKBHOAjdX7-DLrR4-TUlYQBWMZsxCtw',
-  'AIzaSyByPzoD-YRoB1QgyKRubUtY_Ssd3AiSbKg',
-  'AIzaSyAJvqiF-X1oNLZjOKcreb7di1-BIO9aZAM',
-  'AIzaSyA5I_nuPEuWoppGcmGY9Y0_Eq2YGO_ATe8'
-].filter(key => key && key.trim() !== '');
+  'sk-790c2915854b493abd4e8e8d38318f04',
+  import.meta.env.VITE_GEMINI_API_KEY || 'sk-790c2915854b493abd4e8e8d38318f04'
+].filter(key => key && key !== 'your-api-key-here');
+
+// Round-robin API key selection
+let currentKeyIndex = 0;
+
+const getNextApiKey = () => {
+  const key = API_KEYS[currentKeyIndex];
+  currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+  return key;
+};
+
+const createGenAI = () => {
+  const apiKey = getNextApiKey();
+  console.log(`Using API key: ${apiKey.substring(0, 10)}...`);
+  return new GoogleGenerativeAI(apiKey);
+};
 
 if (API_KEYS.length === 0) {
   throw new Error('No valid Gemini API keys found. Please set VITE_GEMINI_API_KEY or provide valid API keys.');
@@ -62,6 +74,9 @@ export async function analyzePageForQuestions(
   try {
     const apiKey = getNextApiKey();
     const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = createGenAI();
+    const genAI = createGenAI();
+    const genAI = createGenAI();
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
