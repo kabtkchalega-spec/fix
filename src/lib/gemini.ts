@@ -1,29 +1,17 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Multiple API keys for rotation to avoid rate limits
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
-
-// Multiple API keys for round-robin usage
 const API_KEYS = [
-  'sk-790c2915854b493abd4e8e8d38318f04',
-  import.meta.env.VITE_GEMINI_API_KEY || 'sk-790c2915854b493abd4e8e8d38318f04'
-].filter(key => key && key !== 'your-api-key-here');
-
-// Round-robin API key selection
-let currentKeyIndex = 0;
-
-const getNextApiKey = () => {
-  const key = API_KEYS[currentKeyIndex];
-  currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
-  return key;
-};
-
-const createGenAI = () => {
-  const apiKey = getNextApiKey();
-  console.log(`Using API key: ${apiKey.substring(0, 10)}...`);
-  return new GoogleGenerativeAI(apiKey);
-};
+  import.meta.env.VITE_GEMINI_API_KEY,
+  'AIzaSyAp5APT1c_GHyB99qlqOEnv81LuV5aC0ZA',
+  'AIzaSyBGs6lGKZbq9WhuqYH2O9rh6QHWARQMPOQ',
+  'AIzaSyDJKTbMMDcyhKsh_tUQn-1b8JlppWVLy9Y',
+  'AIzaSyADzQpjE3NTp2N40iSHeDAVMVp9viNZ-UY',
+  'AIzaSyBFdKBHOAjdX7-DLrR4-TUlYQBWMZsxCtw',
+  'AIzaSyByPzoD-YRoB1QgyKRubUtY_Ssd3AiSbKg',
+  'AIzaSyAJvqiF-X1oNLZjOKcreb7di1-BIO9aZAM',
+  'AIzaSyA5I_nuPEuWoppGcmGY9Y0_Eq2YGO_ATe8'
+].filter(key => key && key.trim() !== '');
 
 if (API_KEYS.length === 0) {
   throw new Error('No valid Gemini API keys found. Please set VITE_GEMINI_API_KEY or provide valid API keys.');
@@ -74,9 +62,6 @@ export async function analyzePageForQuestions(
   try {
     const apiKey = getNextApiKey();
     const genAI = new GoogleGenerativeAI(apiKey);
-    const genAI = createGenAI();
-    const genAI = createGenAI();
-    const genAI = createGenAI();
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
@@ -1145,322 +1130,12 @@ ${question.question_type === 'MCQ' ? `- The answer MUST be "${correctAnswerLette
   throw new Error('Failed to fix question comprehensively after trying all API keys');
 }
 
-// Comprehensive question solving function
-export const solveQuestionWithAI = async (question: any): Promise<{
-  correctAnswer: string;
-  detailedSolution: string;
-  reasoning: string;
-}> => {
-  try {
-    const genAI = createGenAI();
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-    const prompt = `You are an expert in competitive exams. Solve this question completely and provide the correct answer with detailed reasoning.
-
-QUESTION TO SOLVE:
-Statement: ${question.question_statement}
-Type: ${question.question_type}
-${question.options ? `Options: ${question.options.map((opt, i) => `${String.fromCharCode(65 + i)}: ${opt}`).join(', ')}` : ''}
-${question.answer ? `Given Answer: ${question.answer}` : ''}
-
-TASK:
-1. Solve this question step by step
-2. Determine the correct answer
-3. Provide detailed reasoning
-4. For MCQ/MSQ: Identify which option(s) are correct
-5. For NAT: Calculate the numerical answer
-6. For Subjective: Provide comprehensive answer
-
-CRITICAL: Return ONLY valid JSON. No markdown, no explanations.
-
-Expected JSON format:
-{
-  "correctAnswer": "A" or "A,C" or "123" or "Descriptive answer",
-  "detailedSolution": "Complete step-by-step solution with formulas and calculations",
-  "reasoning": "Brief explanation of why this is the correct answer"
-}`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
-    
-    try {
-      const solution = JSON.parse(cleanedText);
-      
-      if (!solution.correctAnswer || !solution.detailedSolution) {
-        throw new Error('Invalid solution format');
-      }
-      
-      return solution;
-      
-    } catch (parseError) {
-      console.error('JSON parsing error:', parseError);
-      console.log('Raw response:', text);
-      throw new Error('Failed to parse AI solution');
-    }
-    
-  } catch (error) {
-    console.error('Error solving question:', error);
-    throw new Error(`Failed to solve question: ${error.message}`);
-  }
-};
-
-// Comprehensive question validation
-export const validateQuestionComprehensively = async (question: any): Promise<{
-  isValid: boolean;
-  issues: string[];
-  solvedAnswer: string;
-  solvedSolution: string;
-}> => {
-  try {
-    // First, solve the question to get the correct answer
-    const solution = await solveQuestionWithAI(question);
-    const issues: string[] = [];
-    
-    // Check question statement
-    if (!question.question_statement || question.question_statement.trim().length < 10) {
-      issues.push('Question statement is too short or missing');
-    }
-    
-    // Type-specific validation
-    if (question.question_type === 'MCQ') {
-      // Check if options exist and are valid
-      if (!question.options || question.options.length !== 4) {
-        issues.push('MCQ must have exactly 4 options');
-      }
-      
-      // Check if answer matches solved answer
-      if (question.answer !== solution.correctAnswer) {
-        issues.push(`Answer mismatch: given "${question.answer}", solved "${solution.correctAnswer}"`);
-      }
-      
-      // Check if answer is valid option
-      if (question.answer && !['A', 'B', 'C', 'D'].includes(question.answer)) {
-        issues.push('MCQ answer must be A, B, C, or D');
-      }
-      
-    } else if (question.question_type === 'MSQ') {
-      // Check if options exist
-      if (!question.options || question.options.length !== 4) {
-        issues.push('MSQ must have exactly 4 options');
-      }
-      
-      // Check if answer format is correct
-      if (question.answer && !/^[A-D](,[A-D])*$/.test(question.answer)) {
-        issues.push('MSQ answer must be in format A,B,C or similar');
-      }
-      
-      // Check if answer matches solved answer
-      const normalizeAnswer = (ans: string) => ans.split(',').sort().join(',');
-      if (question.answer && normalizeAnswer(question.answer) !== normalizeAnswer(solution.correctAnswer)) {
-        issues.push(`Answer mismatch: given "${question.answer}", solved "${solution.correctAnswer}"`);
-      }
-      
-    } else if (question.question_type === 'NAT') {
-      // Check if answer is numerical
-      const numAnswer = parseInt(question.answer);
-      const solvedNumAnswer = parseInt(solution.correctAnswer);
-      
-      if (isNaN(numAnswer) || numAnswer < 0 || numAnswer > 999) {
-        issues.push('NAT answer must be integer between 0-999');
-      }
-      
-      if (numAnswer !== solvedNumAnswer) {
-        issues.push(`Numerical answer mismatch: given "${question.answer}", solved "${solution.correctAnswer}"`);
-      }
-      
-    } else if (question.question_type === 'Subjective') {
-      // Check if answer exists and is substantial
-      if (!question.answer || question.answer.trim().length < 20) {
-        issues.push('Subjective answer is too short or missing');
-      }
-    }
-    
-    // Check solution quality
-    if (!question.solution || question.solution.trim().length < 30) {
-      issues.push('Solution is too short or missing');
-    }
-    
-    return {
-      isValid: issues.length === 0,
-      issues,
-      solvedAnswer: solution.correctAnswer,
-      solvedSolution: solution.detailedSolution
-    };
-    
-  } catch (error) {
-    console.error('Error validating question:', error);
-    return {
-      isValid: false,
-      issues: [`Validation error: ${error.message}`],
-      solvedAnswer: '',
-      solvedSolution: ''
-    };
-  }
-};
-
-// Comprehensive question fixing
-export const fixQuestionComprehensively = async (
-  question: any,
-  solvedAnswer: string,
-  solvedSolution: string
-): Promise<ExtractedQuestion> => {
-  try {
-    const genAI = createGenAI();
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-    const prompt = `You are an expert question fixer for competitive exams. Fix this question to ensure 100% accuracy with proper option distribution.
-
-ORIGINAL QUESTION:
-Statement: ${question.question_statement}
-Type: ${question.question_type}
-Current Options: ${question.options ? question.options.join(', ') : 'None'}
-Current Answer: ${question.answer || 'None'}
-Current Solution: ${question.solution || 'None'}
-
-CORRECT SOLUTION FROM AI:
-Correct Answer: ${solvedAnswer}
-Detailed Solution: ${solvedSolution}
-
-FIXING REQUIREMENTS:
-${question.question_type === 'MCQ' ? `
-1. Create 4 competitive options where only ONE is correct
-2. Place correct answer randomly in position A, B, C, or D (25% distribution)
-3. Make all wrong options plausible but clearly incorrect
-4. Avoid obviously wrong answers
-5. Ensure options are of similar length and complexity
-` : question.question_type === 'MSQ' ? `
-1. Create 4 options with variable number of correct answers
-2. Randomly choose 1, 2, 3, or 4 correct options (25% each for balanced distribution)
-3. Make all options relevant and challenging
-4. Ensure correct options are truly correct and wrong ones are clearly wrong
-` : question.question_type === 'NAT' ? `
-1. Ensure question leads to the numerical answer: ${solvedAnswer}
-2. Modify question statement if needed to match the solved answer
-3. Question should have clean integer solution (0-999)
-4. No options needed for NAT type
-` : `
-1. Ensure question requires comprehensive descriptive answer
-2. Question should test conceptual understanding
-3. No options needed for Subjective type
-`}
-
-QUALITY STANDARDS:
-1. Question statement should be clear and unambiguous
-2. Use proper LaTeX notation: $inline$ or $$display$$
-3. All options should be grammatically correct
-4. Solution should be detailed with step-by-step reasoning
-5. Answer should match the solved answer exactly
-
-CRITICAL: Return ONLY valid JSON. No markdown, no explanations.
-
-Expected JSON format:
-{
-  "question_statement": "Fixed question statement with LaTeX if needed",
-  "question_type": "${question.question_type}",
-  "options": ${question.question_type === 'MCQ' || question.question_type === 'MSQ' ? '["Option A", "Option B", "Option C", "Option D"]' : 'null'},
-  "answer": "${solvedAnswer}",
-  "solution": "Complete detailed solution with proper reasoning"
-}`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
-    
-    try {
-      const fixedQuestion = JSON.parse(cleanedText);
-      
-      // Ensure all required fields are present
-      return {
-        question_statement: fixedQuestion.question_statement || question.question_statement,
-        question_type: question.question_type,
-        options: fixedQuestion.options,
-        answer: solvedAnswer, // Always use the solved answer
-        solution: fixedQuestion.solution || solvedSolution,
-        topic_id: question.topic_id,
-        page_number: 1,
-        has_image: false,
-        image_description: null,
-        is_continuation: false,
-        spans_multiple_pages: false
-      };
-      
-    } catch (parseError) {
-      console.error('JSON parsing error:', parseError);
-      console.log('Raw response:', text);
-      
-      // Fallback: return question with corrected answer and solution
-      return {
-        question_statement: question.question_statement,
-        question_type: question.question_type,
-        options: question.options,
-        answer: solvedAnswer,
-        solution: solvedSolution,
-        topic_id: question.topic_id,
-        page_number: 1,
-        has_image: false,
-        image_description: null,
-        is_continuation: false,
-        spans_multiple_pages: false
-      };
-    }
-    
-  } catch (error) {
-    console.error('Error fixing question:', error);
-    throw new Error(`Failed to fix question: ${error.message}`);
-  }
-};
-
-// Main validation and fixing function
-export const validateAndFixQuestion = async (question: any): Promise<{
-  isValid: boolean;
-  reason?: string;
-  correctedQuestion?: ExtractedQuestion;
-}> => {
-  try {
-    // Step 1: Comprehensive validation
-    const validation = await validateQuestionComprehensively(question);
-    
-    if (validation.isValid) {
-      return {
-        isValid: true,
-        reason: 'Question is already valid'
-      };
-    }
-    
-    // Step 2: Fix the question comprehensively
-    const correctedQuestion = await fixQuestionComprehensively(
-      question,
-      validation.solvedAnswer,
-      validation.solvedSolution
-    );
-    
-    return {
-      isValid: true,
-      reason: `Fixed issues: ${validation.issues.join(', ')}`,
-      correctedQuestion
-    };
-    
-  } catch (error) {
-    console.error('Error in validateAndFixQuestion:', error);
-    return {
-      isValid: false,
-      reason: `Validation/fixing failed: ${error.message}`
-    };
-  }
-};
-
 // Legacy function for backward compatibility
 export async function validateAndCorrectQuestion(question: ExtractedQuestion): Promise<{ 
   isValid: boolean; 
   correctedQuestion?: ExtractedQuestion; 
   reason?: string 
 }> {
-  // Use the new comprehensive validation function
   return await validateAndFixQuestion(question);
 }
 
