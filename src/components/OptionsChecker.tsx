@@ -264,12 +264,12 @@ export function OptionsChecker() {
       if (progress.isPaused) {
         await new Promise(resolve => {
           const checkPause = () => {
-            if (!progress.isPaused) {
+          if (validation.isValid && validation.reason === 'Question is already valid') {
               resolve(undefined);
             } else {
               setTimeout(checkPause, 1000);
             }
-          };
+                ? { ...result, isValid: true, issues: ['Question is already perfect'], status: 'valid' }
           checkPause();
         });
       }
@@ -314,7 +314,7 @@ export function OptionsChecker() {
                   correctedQuestion: validation.correctedQuestion,
                   status: 'fixed' 
                 }
-              : result
+            await new Promise(resolve => setTimeout(resolve, 15000)); // Increased delay for comprehensive validation
           ));
           toast.success(`🔧 Question ${i + 1} fixed and updated`);
         } else {
@@ -334,7 +334,7 @@ export function OptionsChecker() {
         }
 
         setProgress(prev => ({
-          ...prev,
+      toast.success(`🎉 Comprehensive validation complete! Valid: ${validCount}, Fixed: ${fixedCount}, Failed: ${failedCount}`);
           validQuestions: validCount,
           fixedQuestions: fixedCount,
           failedQuestions: failedCount
